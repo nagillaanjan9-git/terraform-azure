@@ -1,0 +1,53 @@
+trigger:
+  - main   # branch from github
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  TF_VERSION: '1.7.5'
+
+stages:
+# ----- PLAN STAGE -----
+- stage: Terraform_Plan
+  jobs:
+  - job: Plan
+    steps:
+    - checkout: self   # pulls code from GitHub
+
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: $(TF_VERSION)
+
+    - script: terraform init
+      displayName: Terraform Init
+
+    - script: terraform validate
+      displayName: Validate
+
+    - script: terraform plan -out=tfplan
+      displayName: Plan
+
+    - publish: tfplan
+      artifact: tfplan
+
+# ----- APPLY STAGE -----
+- stage: Terraform_Apply
+  dependsOn: Terraform_Plan
+  condition: succeeded()
+
+  jobs:
+  - job: Apply
+    steps:
+    - checkout: self
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: tfplan
+
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: $(TF_VERSION)
+
+    - script: terraform apply -auto-approve tfplan
+      displayName: Apply
